@@ -856,6 +856,13 @@ class GoogleSearcher:
         Returns:
             List of SearchResult objects extracted from the page.
         """
+        
+        # ← ADD THIS BLOCK for debugging
+        debug_path = Path("google_response_debug.html")
+        debug_path.write_text(html, encoding="utf-8")
+        print(f"[DEBUG] Raw HTML saved to {debug_path} ({len(html)} bytes)")
+        # ← END DEBUG BLOCK
+        
         soup    = BeautifulSoup(html, "html.parser")
         results: List[SearchResult] = []
 
@@ -887,7 +894,7 @@ class GoogleSearcher:
         if not results:
             self.printer.debug("Container selectors failed; using anchor fallback.")
             results = self._extract_from_anchors(soup, query)
-
+        
         return results
 
     def _extract_from_container(
