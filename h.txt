@@ -1,0 +1,66 @@
+You have successfully proven two things:
+1. **The tool update works perfectly.** It correctly detected the `/sorry/index` CAPTCHA page and stopped gracefully instead of pretending there were zero results.
+2. **Google hates Tor.** 
+
+Google knows that IP (`194.32.107.172`) is a Tor Exit Node. Because thousands of bots use Tor to scrape Google every day, Google automatically serves a CAPTCHA to about 90% of Tor IP addresses.
+
+Also, notice this line in your terminal: `[2]+ Exit 1 tor --User nobody`. This means Tor actually **crashed** right after the `curl` command because the `nobody` user doesn't have write permissions to the `/var/lib/tor` directory in your container/WSL environment.
+
+Here is how to fix the Tor crash, and how to "roll the dice" to get a clean Tor IP that Google hasn't blocked yet.
+
+---
+
+### Step 1: Fix Tor Permissions & Restart It
+
+Run these commands to fix the folder permissions so Tor stops crashing, then start it again:
+
+```bash
+# 1. Kill any broken background tor processes
+pkill tor
+
+# 2. Fix the permissions for the 'nobody' user
+mkdir -p /var/lib/tor
+chown -R nobody:nobody /var/lib/tor
+chmod 700 /var/lib/tor
+
+# 3. Start Tor in the background
+tor --User nobody > /dev/null 2>&1 &
+```
+
+Wait 10 seconds, then verify it is running (and not crashing):
+```bash
+curl --socks5 127.0.0.1:9050 https://check.torproject.org/api/ip
+```
+
+---
+
+### Step 2: "Roll the Dice" for a clean Tor IP
+
+Because Google blocks most Tor nodes, you have to play a game of "Tor Roulette." 
+Run your tool. If you get the `Google redirected to: ... /sorry/index` warning, **your current Tor IP is blocked**. 
+
+You must ask Tor for a new IP address. You do this simply by restarting Tor:
+
+```bash
+# Restart Tor to get a brand new IP address
+pkill tor && tor --User nobody > /dev/null 2>&1 &
+```
+*(Wait 10 seconds for it to reconnect)*
+
+Then run DorkSentry again:
+```bash
+python dorksentry2.py -q "site:hackerone.com" --proxy "socks5://127.0.0.1:9050" --delay 10
+```
+
+**Keep repeating this loop (Restart Tor ➔ Run Tool) until you land on a Tor IP that Google hasn't blocked yet.** 
+
+---
+
+### The Harsh Reality of Google Scraping (2024)
+
+If you find yourself constantly battling CAPTCHAs, you have hit the wall that every OSINT researcher hits. Google's anti-bot detection is world-class.
+
+To reliably scrape Google for bug bounties moving forward, researchers generally use one of three methods:
+1. **Residential Proxies:** Paid proxies that route your traffic through real home internet connections (ISPs like Comcast/AT&T) which Google rarely blocks.
+2. **Google Custom Search API:** Google gives you 100 free searches per day via an official API (no scraping required, no CAPTCHAs ever).
+3. **Use a different search engine:** Bing, DuckDuckGo, and Yahoo are significantly less aggressive at blocking bots than Google.
